@@ -32,7 +32,7 @@ struct ResultsView: View {
                     .foregroundColor(Theme.primary)
 
                 if !winnerNames.isEmpty {
-                    Text("\(winnerNames) wins!")
+                    Text("\(winnerNames) \((viewModel.winnerIds?.count ?? 1) > 1 ? "win" : "wins")!")
                         .font(.title2)
                         .fontWeight(.semibold)
                         .foregroundColor(Theme.accent)
@@ -96,7 +96,8 @@ struct ResultsView: View {
 
     private func puddingBonus(for player: Player) -> Int {
         let pudding = ScoringEngine.puddingScores(
-            playersPuddingCounts: viewModel.players.map { ($0.id, $0.puddingCount) }
+            playersPuddingCounts: viewModel.players.map { ($0.id, $0.puddingCount) },
+            playerCount: viewModel.players.count
         )
         return pudding[player.id] ?? 0
     }

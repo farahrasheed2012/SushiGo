@@ -34,18 +34,24 @@ final class GameViewModel: ObservableObject {
     /// Final scores including pudding (only valid after game over).
     var finalScores: [UUID: Int] {
         guard isGameOver else { return [:] }
-        let pudding = ScoringEngine.puddingScores(playersPuddingCounts: players.map { ($0.id, $0.puddingCount) })
+        let pudding = ScoringEngine.puddingScores(
+            playersPuddingCounts: players.map { ($0.id, $0.puddingCount) },
+            playerCount: players.count
+        )
         return Dictionary(uniqueKeysWithValues: players.map { id in
             (id.id, id.totalScore + (pudding[id.id] ?? 0))
         })
     }
 
-    /// Winner player id(s) if tie; nil if not game over.
+    /// Winner player id(s). Official rules: tiebreaker is most pudding cards.
     var winnerIds: [UUID]? {
         guard isGameOver else { return nil }
         let scores = finalScores
         guard let maxScore = scores.values.max() else { return nil }
-        return scores.filter { $0.value == maxScore }.map(\.key)
+        let tied = players.filter { (scores[$0.id] ?? 0) == maxScore }
+        guard tied.count > 1 else { return tied.map(\.id) }
+        let maxPudding = tied.map(\.puddingCount).max() ?? 0
+        return tied.filter { $0.puddingCount == maxPudding }.map(\.id)
     }
 
     // MARK: - Setup

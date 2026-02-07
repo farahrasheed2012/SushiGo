@@ -69,55 +69,68 @@ enum ScoringEngine {
         return total
     }
 
-    /// Maki: 6 for most, 3 for second-most, 0 others. Ties: split points (e.g. two-way tie for first = 4 each).
+    /// Maki: 6 for most, 3 for second. Official rules: if multiple tie for most, split 6 only (no second place).
+    /// When everyone has 0 maki, no one scores maki points.
     static func makiScores(playersMakiCounts: [(playerId: UUID, count: Int)]) -> [UUID: Int] {
         guard !playersMakiCounts.isEmpty else { return [:] }
 
         let sorted = playersMakiCounts.sorted { $0.count > $1.count }
-        var result: [UUID: Int] = [:]
-
         let firstCount = sorted[0].count
+        guard firstCount > 0 else {
+            return Dictionary(uniqueKeysWithValues: playersMakiCounts.map { ($0.playerId, 0) })
+        }
+
+        var result: [UUID: Int] = [:]
         let firstGroup = Array(sorted.prefix { $0.count == firstCount })
-        let firstPoints: Int
+
         if firstGroup.count == 1 {
-            firstPoints = 6
-            for p in firstGroup { result[p.playerId] = 6 }
+            result[firstGroup[0].playerId] = 6
             let rest = sorted.dropFirst()
-            guard let secondCount = rest.first?.count else { return result }
-            let secondGroup = Array(rest.prefix { $0.count == secondCount })
-            let secondPoints = secondGroup.count == 1 ? 3 : 3 / secondGroup.count
-            for p in secondGroup { result[p.playerId] = secondPoints }
+            if let secondCount = rest.first?.count {
+                let secondGroup = Array(rest.prefix { $0.count == secondCount })
+                let secondPoints = secondGroup.count == 1 ? 3 : 3 / secondGroup.count
+                for p in secondGroup { result[p.playerId] = secondPoints }
+            }
         } else {
-            firstPoints = (6 + 3) / firstGroup.count
+            // Tie for first: split 6 points only; no second place awarded (official rules)
+            let firstPoints = 6 / firstGroup.count
             for p in firstGroup { result[p.playerId] = firstPoints }
         }
 
         return result
     }
 
-    /// Pudding at end of game: +6 most, -6 least. Ties split (e.g. two-way tie for least = -3 each).
-    static func puddingScores(playersPuddingCounts: [(playerId: UUID, count: Int)]) -> [UUID: Int] {
+    /// Pudding at end of game: +6 most, -6 least. Official rules: 2-player = no penalty for least;
+    /// if all players have same count, no one scores. Ties split (ignore remainder).
+    static func puddingScores(playersPuddingCounts: [(playerId: UUID, count: Int)], playerCount: Int) -> [UUID: Int] {
         guard !playersPuddingCounts.isEmpty else { return [:] }
         if playersPuddingCounts.count == 1 {
             return [playersPuddingCounts[0].playerId: 0]
         }
 
         let sorted = playersPuddingCounts.sorted { $0.count > $1.count }
-        var result: [UUID: Int] = [:]
-
         let maxCount = sorted[0].count
-        let mostGroup = Array(sorted.prefix { $0.count == maxCount })
         let minCount = sorted.last?.count ?? 0
-        let leastGroup = Array(sorted.filter { $0.count == minCount })
 
+        // All same pudding count: no one scores anything (official rules)
+        if maxCount == minCount {
+            return Dictionary(uniqueKeysWithValues: playersPuddingCounts.map { ($0.playerId, 0) })
+        }
+
+        var result: [UUID: Int] = [:]
+        let mostGroup = Array(sorted.prefix { $0.count == maxCount })
         let mostPoints = mostGroup.count == 1 ? 6 : 6 / mostGroup.count
         for p in mostGroup {
             result[p.playerId] = mostPoints
         }
 
-        let leastPoints = leastGroup.count == 1 ? -6 : -6 / leastGroup.count
-        for p in leastGroup {
-            result[p.playerId] = leastPoints
+        // In a 2-player game, no one loses points for puddings (official rules)
+        if playerCount > 2 {
+            let leastGroup = Array(sorted.filter { $0.count == minCount })
+            let leastPoints = leastGroup.count == 1 ? -6 : -6 / leastGroup.count
+            for p in leastGroup {
+                result[p.playerId] = leastPoints
+            }
         }
 
         for p in sorted where result[p.playerId] == nil {
